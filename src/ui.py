@@ -10,8 +10,8 @@ class App(tk.Frame):
         super().__init__(master, bg="#1e1e1e")
 
         # Logo laden
-        image = Image.open("logo.png")  # Pfad zu deinem Logo
-        image = image.resize((120, 120))  # optional verkleinern
+        image = Image.open("src/resources/img/quattrom-logo.png")  # Pfad zu deinem Logo
+        image = image.resize((180, 54))  # optional verkleinern
         self.logo = ImageTk.PhotoImage(image)
 
         # Label mit Logo
@@ -50,24 +50,29 @@ class App(tk.Frame):
         self.quit_button = ttk.Button(self, text="Beenden", command=self.quit)
         self.quit_button.pack(pady=10)
 
+        # Button zum Setzen der IP (nur einmal erstellen!)
+        self.ip_button = ttk.Button(self, text="IP einstellen",
+                                    command=self.set_ip_dialog)
+        self.ip_button.pack(side="bottom", anchor="se", padx=10, pady=12)
+
+        # Label unten rechts für IP-Adresse (nur einmal erstellen!)
+        self.ip_label = tk.Label(self, text=f"IP: {self.current_ip}",
+                                 font=("Arial", 12),
+                                 fg="white", bg="#1e1e1e", anchor="se")
+        self.ip_label.pack(side="bottom", anchor="se", padx=10, pady=10)
+
+
     def update_data(self):
         # Hole Daten vom Provider
-        angle = 0#self.data_provider.get_angle()
+        angle = 0  # self.data_provider.get_angle()
         self.angle_value.config(text=f"{angle} °")
+
+        # IP-Label ggf. aktualisieren (aber nicht neu erzeugen!)
+        self.ip_label.config(text=f"IP: {self.current_ip}")
 
         # alle 500ms neu abfragen
         self.after(500, self.update_data)
 
-        # Button zum Setzen der IP
-        self.ip_button = ttk.Button(self, text="IP einstellen",
-                                    command=self.set_ip_dialog)
-        self.ip_button.pack(pady=10)
-
-        # Label unten rechts für IP-Adresse
-        self.ip_label = tk.Label(self, text=f"IP: {self.current_ip}",
-                                 font=("Arial", 10),
-                                 fg="white", bg="#1e1e1e", anchor="se")
-        self.ip_label.pack(side="bottom", anchor="se", padx=10, pady=10)
 
     def set_ip_dialog(self):
         # Eingabedialog für IPv4
@@ -102,4 +107,4 @@ class App(tk.Frame):
 
     def on_gpio_event(self, channel):
         print(f"GPIO Event erkannt an Pin {channel}")
-        # hier könntest du direkt UI-Reaktionen einbauen
+        #  UI-reactions

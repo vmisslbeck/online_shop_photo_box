@@ -1,5 +1,5 @@
 
-# Auf anderem Rechner
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
+# One time only
+python -m venv myvenv
+source myvenv/bin/activate
 pip install -r requirements.txt
