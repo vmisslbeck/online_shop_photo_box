@@ -25,7 +25,7 @@ class App(tk.Frame):
         self.gpio_handler = GPIOHandler(callback=self.on_gpio_event)
 
         # Kamera Handler
-        self.camera_handler = CameraHandler()  # Automatische Erkennung Dummy/Real
+        self.camera_handler = CameraHandler(camera_mode="auto")  # Automatische Erkennung
         
         # Kamera-Display Variablen
         self.camera_display = None
@@ -40,6 +40,9 @@ class App(tk.Frame):
 
         # Update Loop für Daten
         self.update_data()
+        
+        # Separater schneller Update für Kamera
+        self.update_camera_fast()
 
 
     def create_widgets(self):
@@ -52,17 +55,21 @@ class App(tk.Frame):
         self.camera_frame.pack(side="left", padx=20, pady=10, fill="both", expand=True)
         
         # Kamera-Status
-        camera_status = "Verbunden (Dummy)" if self.camera_handler.is_dummy else "Verbunden" if self.camera_handler.is_connected() else "Nicht verbunden"
+        camera_mode = self.camera_handler.camera_mode.upper()
+        camera_status = f"Verbunden ({camera_mode})" if self.camera_handler.is_connected() else "Nicht verbunden"
         self.camera_status_label = ttk.Label(self.camera_frame, text=f"Kamera: {camera_status}", font=("Arial", 10))
         self.camera_status_label.pack(pady=5)
         
+        # Kamera-Display Container für bessere Kontrolle
+        self.camera_display_frame = tk.Frame(self.camera_frame, bg="#1e1e1e")
+        self.camera_display_frame.pack(pady=10, expand=True, fill="both")
+        
         # Kamera-Display
-        self.camera_display = tk.Label(self.camera_frame, 
+        self.camera_display = tk.Label(self.camera_display_frame, 
                                      text="Kamera-Vorschau\n(Live View starten)", 
-                                     width=80, height=30,
                                      bg="#2d2d2d", fg="white",
                                      font=("Arial", 12))
-        self.camera_display.pack(pady=10)
+        self.camera_display.pack(expand=True)
         
         # Kamera-Buttons Frame
         self.camera_buttons_frame = tk.Frame(self.camera_frame, bg="#1e1e1e")
@@ -114,12 +121,17 @@ class App(tk.Frame):
 
         # IP-Label ggf. aktualisieren (aber nicht neu erzeugen!)
         self.ip_label.config(text=f"IP: {self.current_ip}")
+
+        # Langsamere Updates alle 500ms (nur für Status-Daten)
+        self.after(500, self.update_data)
         
+    def update_camera_fast(self):
+        """Schnelle Kamera-Updates für flüssige Darstellung"""
         # Kamera-Display aktualisieren
         self.update_camera_display()
 
-        # alle 500ms neu abfragen
-        self.after(500, self.update_data)
+        # Schnelle Updates alle 16ms (60 FPS)
+        self.after(16, self.update_camera_fast)
 
 
     def set_ip_dialog(self):
@@ -181,18 +193,41 @@ class App(tk.Frame):
             current_image = self.camera_handler.get_current_image()
             if current_image:
                 try:
-                    # Bild für Tkinter vorbereiten
+                    # Debug-Info
+                    original_size = current_image.size
+                    
+                    # Bild für Display vorbereiten
                     display_image = current_image.copy()
-                    # Größe anpassen falls nötig
-                    display_size = (640, 480)
-                    if display_image.size != display_size:
-                        display_image = display_image.resize(display_size, Image.Resampling.LANCZOS)
+                    
+                    # Berechne die optimale Größe für das Display
+                    # Maximal 640x480, aber mit korrektem Aspektverhältnis
+                    max_width, max_height = 640, 480
+                    img_width, img_height = display_image.size
+                    
+                    # Berechne Skalierungsfaktor unter Beibehaltung des Aspektverhältnisses
+                    scale_w = max_width / img_width
+                    scale_h = max_height / img_height
+                    scale = min(scale_w, scale_h)
+                    
+                    # Neue Größe berechnen
+                    new_width = int(img_width * scale)
+                    new_height = int(img_height * scale)
+                    
+                    # Debug-Info nur beim ersten mal
+                    if not hasattr(self, '_debug_printed'):
+                        print(f"Bildgrößen - Original: {original_size}, Skaliert: {new_width}x{new_height}, Scale: {scale:.2f}")
+                        self._debug_printed = True
+                    
+                    # Bild skalieren
+                    display_image = display_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
                     
                     # In PhotoImage umwandeln
                     self.camera_photo = ImageTk.PhotoImage(display_image)
                     self.camera_display.config(image=self.camera_photo, text="")
+                    
                 except Exception as e:
                     print(f"Fehler beim Aktualisieren des Kamera-Displays: {e}")
+                    print(f"Originalgröße: {current_image.size if current_image else 'None'}")
                     
     def capture_photo(self):
         """Nimmt ein Foto auf"""
