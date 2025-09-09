@@ -176,16 +176,51 @@ class App(tk.Frame):
             return
             
         if not self.camera_handler.live_view_active:
-            if self.camera_handler.start_live_view():
-                self.live_view_button.config(text="Live View stoppen")
-                messagebox.showinfo("Info", "Live View gestartet")
-            else:
-                messagebox.showerror("Fehler", "Live View konnte nicht gestartet werden!")
+            # Live-View starten
+            print("Starte Live-View...")
+            self.live_view_button.config(text="Live View wird gestartet...", state="disabled")
+            
+            # Kurze Verzögerung für UI-Update
+            self.after(100, self._start_live_view_delayed)
         else:
+            # Live-View stoppen
+            print("Stoppe Live-View...")
             self.camera_handler.stop_live_view()
-            self.live_view_button.config(text="Live View starten")
+            self.live_view_button.config(text="Live View starten", state="normal")
+            
             # Display zurücksetzen
             self.camera_display.config(image="", text="Kamera-Vorschau\n(Live View starten)")
+            self._debug_printed = False  # Reset debug flag
+    
+    def _start_live_view_delayed(self):
+        """Startet Live-View mit Verzögerung (für UI-Responsivität)"""
+        try:
+            if self.camera_handler.start_live_view():
+                self.live_view_button.config(text="Live View stoppen", state="normal")
+                
+                # Gib Feedback je nach Kamera-Modus
+                if self.camera_handler.camera_mode == "gphoto2":
+                    messagebox.showinfo("Info", 
+                        "Live View gestartet\n\n"
+                        "Hinweis: Bei Canon DSLRs kann es 2-3 Sekunden dauern bis das erste Bild erscheint.\n"
+                        "Falls kein Bild erscheint, prüfen Sie:\n"
+                        "• Kamera-Modus (M/Av/Tv statt Auto)\n" 
+                        "• Live-View-Einstellung an der Kamera\n"
+                        "• USB-Verbindung")
+                else:
+                    messagebox.showinfo("Info", "Live View gestartet")
+            else:
+                self.live_view_button.config(text="Live View starten", state="normal")
+                messagebox.showerror("Fehler", 
+                    "Live View konnte nicht gestartet werden!\n\n"
+                    "Mögliche Lösungen:\n"
+                    "• Kamera in M/Av/Tv-Modus stellen (nicht Auto)\n"
+                    "• Live-View an der Kamera aktivieren\n"
+                    "• Kamera-Verbindung zurücksetzen (Studio-Kontrolle)")
+        except Exception as e:
+            self.live_view_button.config(text="Live View starten", state="normal")
+            messagebox.showerror("Fehler", f"Live View Fehler: {str(e)}")
+            print(f"Live View Fehler: {e}")
             
     def update_camera_display(self):
         """Aktualisiert das Kamera-Display mit dem aktuellen Bild"""

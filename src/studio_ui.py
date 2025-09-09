@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+import os
 from ui import App
 
 class StudioControlPanel(tk.Toplevel):
@@ -45,14 +46,38 @@ class StudioControlPanel(tk.Toplevel):
             self.create_camera_controls(main_frame)
         
         # Status
-        status_frame = ttk.LabelFrame(main_frame, text="Status", padding=10)
+        status_frame = ttk.LabelFrame(main_frame, text="Kamera-Status", padding=10)
         status_frame.pack(fill="x", pady=5)
         
         self.status_label = ttk.Label(status_frame, text="Bereit")
         self.status_label.pack()
         
+        # Kamera-Modus Kontrollen (nur für gphoto2)
+        if camera_handler.camera_mode == "gphoto2":
+            control_frame = ttk.LabelFrame(status_frame, text="Kamera-Kontrolle", padding=5)
+            control_frame.pack(fill="x", pady=5)
+            
+            # Buttons für Kamera-Modus
+            button_frame = ttk.Frame(control_frame)
+            button_frame.pack(fill="x", pady=2)
+            
+            self.manual_mode_button = ttk.Button(button_frame, text="Manuelle Bedienung aktivieren", 
+                                               command=self.enable_manual_mode)
+            self.manual_mode_button.pack(side="left", padx=2)
+            
+            self.reset_camera_button = ttk.Button(button_frame, text="Kamera zurücksetzen", 
+                                                command=self.reset_camera)
+            self.reset_camera_button.pack(side="left", padx=2)
+            
+            self.refresh_status_button = ttk.Button(button_frame, text="Status aktualisieren", 
+                                                  command=self.refresh_status)
+            self.refresh_status_button.pack(side="left", padx=2)
+        
         # Aktualisiere Status
         self.update_status()
+        
+        # Kontinuierliche Status-Updates
+        self.start_status_updates()
     
     def create_camera_controls(self, parent):
         """Erstellt Kamera-Einstellungs-Kontrollen"""
@@ -164,14 +189,65 @@ class StudioControlPanel(tk.Toplevel):
     
     def update_status(self):
         """Aktualisiert Status-Anzeige"""
+        status = self.camera_handler.get_camera_status()
+        
+        status_text = f"Kamera: {status['mode'].upper()}"
+        if status['connected']:
+            status_text += " (Verbunden)"
+            if status.get('manual_control_available', False):
+                status_text += " - Manuell bedienbar ✅"
+            else:
+                status_text += " - PC-Remote Modus ⚠️"
+        else:
+            status_text += " (Nicht verbunden)"
+        
+        if status['live_view_active']:
+            status_text += "\nLive-View: Aktiv"
+        
         if self.camera_handler.studio_mode:
             if self.camera_handler.auto_forward_photos:
                 folder = self.camera_handler.lightroom_folder
-                self.status_label.config(text=f"Studio-Modus: Aktiv → {folder}")
+                status_text += f"\nStudio-Modus: Aktiv → {os.path.basename(folder) if folder else 'Unbekannt'}"
             else:
-                self.status_label.config(text="Studio-Modus: Aktiv (ohne Auto-Weiterleitung)")
+                status_text += "\nStudio-Modus: Aktiv (ohne Auto-Weiterleitung)"
         else:
-            self.status_label.config(text="Studio-Modus: Inaktiv")
+            status_text += "\nStudio-Modus: Inaktiv"
+            
+        self.status_label.config(text=status_text)
+    
+    def enable_manual_mode(self):
+        """Aktiviert manuellen Kamera-Modus"""
+        success = self.camera_handler.enable_camera_manual_mode()
+        if success:
+            self.status_label.config(text="Manueller Modus aktiviert - Kamera kann wieder direkt bedient werden")
+        else:
+            self.status_label.config(text="Fehler beim Aktivieren des manuellen Modus")
+        
+        # Status nach 3 Sekunden aktualisieren
+        self.after(3000, self.refresh_status)
+    
+    def reset_camera(self):
+        """Setzt Kamera-Verbindung zurück"""
+        self.status_label.config(text="Setze Kamera zurück...")
+        self.camera_handler.reset_camera_connection()
+        self.after(2000, self.refresh_status)
+    
+    def refresh_status(self):
+        """Aktualisiert alle Status-Informationen"""
+        self.camera_handler._load_current_settings()
+        self.update_status()
+        
+        # UI-Werte aktualisieren falls vorhanden
+        if hasattr(self, 'settings_vars'):
+            for setting, var in self.settings_vars.items():
+                current = self.camera_handler.camera_settings.get(setting, '')
+                if current:
+                    var.set(current)
+    
+    def start_status_updates(self):
+        """Startet kontinuierliche Status-Updates"""
+        self.update_status()
+        self.after(5000, self.start_status_updates)  # Alle 5 Sekunden
 
 # Erweiterte App-Klasse
 class StudioApp(App):

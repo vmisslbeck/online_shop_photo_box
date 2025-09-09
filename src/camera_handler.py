@@ -151,11 +151,20 @@ class CameraHandler:
             if result.returncode == 0 and "usb:" in result.stdout.lower():
                 self.camera_connected = True
                 print("Kamera erkannt und verbunden")
+                print(f"Kamera-Info:\n{result.stdout}")
+                
+                # Kamera-Fähigkeiten abfragen für bessere Kompatibilität
+                self._check_camera_capabilities()
+                
             else:
                 print("Keine Kamera erkannt")
+                print(f"gphoto2 output: {result.stdout}")
                 self.camera_connected = False
         except subprocess.TimeoutExpired:
             print("Timeout bei Kamera-Erkennung")
+            self.camera_connected = False
+        except Exception as e:
+            print(f"Fehler bei Kamera-Erkennung: {e}")
             self.camera_connected = False
     
     def start_live_view(self):
@@ -266,31 +275,85 @@ class CameraHandler:
     def _start_gphoto_live_view(self):
         """Startet echte Live-View mit gphoto2"""
         def gphoto_loop():
+            frame_count = 0
+            consecutive_errors = 0
+            max_errors = 5
+            
+            print("Starte gphoto2 Live-View...")
+            
             while self.live_view_active:
                 try:
-                    # Capture preview image
-                    preview_path = os.path.join(self.temp_dir, "preview.jpg")
-                    result = subprocess.run([
-                        'gphoto2', 
-                        '--capture-preview', 
-                        '--filename', preview_path
-                    ], capture_output=True, timeout=5)
+                    # Preview-Datei-Pfad
+                    preview_path = os.path.join(self.temp_dir, f"preview_{frame_count % 5}.jpg")
                     
-                    if result.returncode == 0 and os.path.exists(preview_path):
+                    # Verschiedene Preview-Methoden ausprobieren
+                    preview_commands = [
+                        ['gphoto2', '--capture-preview', '--filename', preview_path],
+                        ['gphoto2', '--capture-preview', '--filename', preview_path, '--force-overwrite'],
+                        ['gphoto2', '--capture-preview']  # Default filename
+                    ]
+                    
+                    success = False
+                    for cmd in preview_commands:
                         try:
-                            self.current_image = Image.open(preview_path)
-                            # Größe anpassen falls nötig
-                            if self.current_image.size[0] > 640:
-                                self.current_image = self.current_image.resize((640, 480), Image.Resampling.LANCZOS)
+                            result = subprocess.run(cmd, capture_output=True, timeout=3)
+                            
+                            if result.returncode == 0:
+                                # Finde Preview-Datei
+                                if '--filename' in cmd:
+                                    test_path = preview_path
+                                else:
+                                    # gphoto2 default: preview.jpg im aktuellen Verzeichnis
+                                    test_path = "preview.jpg"
+                                
+                                if os.path.exists(test_path):
+                                    try:
+                                        img = Image.open(test_path)
+                                        # Größe anpassen falls sehr groß
+                                        if img.size[0] > 1920:
+                                            img = img.resize((1920, 1080), Image.Resampling.LANCZOS)
+                                        
+                                        self.current_image = img
+                                        success = True
+                                        consecutive_errors = 0
+                                        
+                                        if frame_count < 3:
+                                            print(f"Live-View Frame {frame_count}: {img.size}")
+                                        
+                                        # Cleanup
+                                        try:
+                                            os.remove(test_path)
+                                        except:
+                                            pass
+                                        
+                                        break
+                                        
+                                    except Exception as e:
+                                        print(f"Fehler beim Laden des Preview-Bildes: {e}")
+                                        
+                        except subprocess.TimeoutExpired:
+                            print("Timeout bei gphoto2 preview")
                         except Exception as e:
-                            print(f"Fehler beim Laden des Preview-Bildes: {e}")
+                            print(f"Fehler bei gphoto2 Kommando {cmd}: {e}")
                     
-                except subprocess.TimeoutExpired:
-                    print("Timeout bei gphoto2 preview")
+                    if not success:
+                        consecutive_errors += 1
+                        print(f"Live-View Fehler #{consecutive_errors}")
+                        
+                        if consecutive_errors >= max_errors:
+                            print("Zu viele Live-View Fehler, stoppe...")
+                            break
+                    
+                    frame_count += 1
+                    
                 except Exception as e:
-                    print(f"Fehler bei gphoto2: {e}")
+                    consecutive_errors += 1
+                    print(f"Unerwarteter Fehler in Live-View Loop: {e}")
+                    
+                    if consecutive_errors >= max_errors:
+                        break
                 
-                time.sleep(1/10)  # 10 FPS für echte Kamera
+                time.sleep(1/2)  # 2 FPS für DSLR Live-View (schont Kamera)
         
         thread = threading.Thread(target=gphoto_loop, daemon=True)
         thread.start()
@@ -484,6 +547,105 @@ class CameraHandler:
     def get_camera_settings(self):
         """Gibt aktuelle Kamera-Einstellungen zurück"""
         return self.camera_settings.copy()
+    
+    def _check_camera_capabilities(self):
+        """Prüft Kamera-Fähigkeiten und optimiert Einstellungen"""
+        try:
+            # Kamera-Zusammenfassung abrufen
+            result = subprocess.run(['gphoto2', '--summary'], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                print("Kamera-Zusammenfassung:")
+                print(result.stdout[:500])  # Erste 500 Zeichen
+                
+                # Prüfe Live-View-Unterstützung
+                if "liveview" in result.stdout.lower() or "preview" in result.stdout.lower():
+                    print("Live-View wird unterstützt")
+                    self.live_view_supported = True
+                else:
+                    print("Live-View-Unterstützung unbekannt, versuche trotzdem")
+                    self.live_view_supported = True  # Versuche es trotzdem
+            
+            # Prüfe verfügbare Operationen
+            result = subprocess.run(['gphoto2', '--list-operations'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                operations = result.stdout.lower()
+                print(f"Verfügbare Operationen: {', '.join(operations.split()[:5])}...")
+                
+        except Exception as e:
+            print(f"Warnung: Konnte Kamera-Fähigkeiten nicht vollständig prüfen: {e}")
+            self.live_view_supported = True  # Default: versuchen
+    
+    def reset_camera_connection(self):
+        """Setzt Kamera-Verbindung zurück (für manuelle Bedienung)"""
+        try:
+            print("Setze Kamera-Verbindung zurück...")
+            
+            # Live-View stoppen falls aktiv
+            if self.live_view_active:
+                self.stop_live_view()
+                time.sleep(1)
+            
+            # Kamera "freigeben" durch exit
+            result = subprocess.run(['gphoto2', '--exit'], 
+                                  capture_output=True, text=True, timeout=5)
+            
+            time.sleep(2)  # Kurze Pause für Kamera-Reset
+            
+            # Erneut verbinden
+            self._detect_camera()
+            
+            print("Kamera-Verbindung zurückgesetzt")
+            
+        except Exception as e:
+            print(f"Fehler beim Zurücksetzen der Kamera-Verbindung: {e}")
+
+    def enable_camera_manual_mode(self):
+        """Aktiviert manuellen Kamera-Modus (deaktiviert PC-Remote)"""
+        try:
+            print("Aktiviere manuellen Kamera-Modus...")
+            
+            # Versuche Kamera in PTP-Modus zu setzen
+            result = subprocess.run(['gphoto2', '--set-config', 'capture=0'], 
+                                  capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0:
+                print("Kamera in manuellen Modus gesetzt")
+                return True
+            else:
+                print(f"Warnung: Konnte Kamera-Modus nicht ändern: {result.stderr}")
+                
+            # Alternative: Kamera-Reset
+            self.reset_camera_connection()
+            return True
+            
+        except Exception as e:
+            print(f"Fehler beim Aktivieren des manuellen Modus: {e}")
+            return False
+
+    def get_camera_status(self):
+        """Gibt detaillierten Kamera-Status zurück"""
+        status = {
+            'connected': self.camera_connected,
+            'mode': self.camera_mode,
+            'live_view_active': self.live_view_active,
+            'studio_mode': getattr(self, 'studio_mode', False),
+            'manual_control_available': False
+        }
+        
+        if self.camera_mode == "gphoto2" and self.camera_connected:
+            try:
+                # Prüfe ob Kamera manuell bedienbar ist
+                result = subprocess.run(['gphoto2', '--get-config', 'capture'], 
+                                      capture_output=True, text=True, timeout=3)
+                if result.returncode == 0 and "current: 0" in result.stdout.lower():
+                    status['manual_control_available'] = True
+                    
+            except:
+                pass
+        
+        return status
     
     def is_connected(self):
         """Prüft ob Kamera verbunden ist"""
