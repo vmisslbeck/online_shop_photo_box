@@ -298,6 +298,13 @@ class CameraHandler:
                         try:
                             result = subprocess.run(cmd, capture_output=True, timeout=3)
                             
+                            # Prüfe auf USB-Konflikt
+                            if result.returncode != 0 and "could not claim" in result.stderr.lower():
+                                print("USB-Konflikt erkannt - versuche automatische Behebung...")
+                                if self.diagnose_usb_issue(result.stderr):
+                                    print("USB-Konflikt behoben, versuche erneut...")
+                                    result = subprocess.run(cmd, capture_output=True, timeout=3)
+                            
                             if result.returncode == 0:
                                 # Finde Preview-Datei
                                 if '--filename' in cmd:
@@ -330,6 +337,10 @@ class CameraHandler:
                                         
                                     except Exception as e:
                                         print(f"Fehler beim Laden des Preview-Bildes: {e}")
+                            else:
+                                # Debug-Output für andere Fehler
+                                if frame_count < 3 and result.stderr:
+                                    print(f"Preview-Fehler: {result.stderr[:100]}")
                                         
                         except subprocess.TimeoutExpired:
                             print("Timeout bei gphoto2 preview")
@@ -411,17 +422,36 @@ class CameraHandler:
         """Macht ein Foto mit gphoto2"""
         try:
             capture_path = filename or f"photo_{int(time.time())}.jpg"
+            
+            # Erstes Versuche
             result = subprocess.run([
                 'gphoto2',
                 '--capture-image-and-download',
                 '--filename', capture_path
-            ], capture_output=True, timeout=10)
+            ], capture_output=True, timeout=15)
+            
+            # Prüfe auf USB-Konflikt
+            if result.returncode != 0 and "could not claim" in result.stderr.lower():
+                print("USB-Konflikt bei Foto-Aufnahme erkannt - behebe automatisch...")
+                if self.diagnose_usb_issue(result.stderr):
+                    print("Versuche Foto-Aufnahme erneut...")
+                    # Zweiter Versuch nach USB-Fix
+                    result = subprocess.run([
+                        'gphoto2',
+                        '--capture-image-and-download', 
+                        '--filename', capture_path
+                    ], capture_output=True, timeout=15)
             
             if result.returncode == 0:
                 # Studio-Modus: Foto automatisch weiterleiten
                 if self.studio_mode:
                     self._forward_photo_to_lightroom(capture_path)
                 return capture_path
+            else:
+                print(f"Foto-Aufnahme fehlgeschlagen: {result.stderr}")
+                
+        except subprocess.TimeoutExpired:
+            print("Timeout bei Foto-Aufnahme")
         except Exception as e:
             print(f"Fehler beim Fotografieren: {e}")
         
@@ -646,6 +676,59 @@ class CameraHandler:
                 pass
         
         return status
+    
+    def fix_usb_conflicts(self):
+        """Behebt USB-Konflikte automatisch"""
+        try:
+            print("Behebe USB-Konflikte...")
+            
+            # Stoppe bekannte problematische Prozesse
+            problematic_processes = [
+                "gvfs-gphoto2-volume-monitor",
+                "gvfs-mtp-volume-monitor"
+            ]
+            
+            for process in problematic_processes:
+                try:
+                    # Prüfe ob Prozess läuft
+                    result = subprocess.run(f"pgrep -f {process}", 
+                                          capture_output=True, text=True, shell=True)
+                    if result.returncode == 0:
+                        print(f"Stoppe {process}...")
+                        
+                        # Stoppe Prozess
+                        subprocess.run(f"pkill -f {process}", shell=True)
+                        subprocess.run(f"killall {process}", shell=True)
+                        time.sleep(1)
+                        
+                except Exception as e:
+                    print(f"Warnung beim Stoppen von {process}: {e}")
+            
+            # Kurze Pause für System-Stabilisierung  
+            time.sleep(2)
+            
+            # Teste Kamera-Zugriff erneut
+            self._detect_camera()
+            
+            return self.camera_connected
+            
+        except Exception as e:
+            print(f"Fehler beim Beheben der USB-Konflikte: {e}")
+            return False
+    
+    def diagnose_usb_issue(self, error_message):
+        """Diagnostiziert USB-Probleme basierend auf Fehlermeldung"""
+        if "could not claim" in error_message.lower():
+            print("🔍 USB-Konflikt erkannt!")
+            print("Mögliche Ursachen:")
+            print("• gvfs-gphoto2-volume-monitor blockiert USB")
+            print("• Andere Software verwendet die Kamera")
+            print("• Unzureichende USB-Berechtigungen")
+            
+            print("\nAutomatische Behebung wird versucht...")
+            return self.fix_usb_conflicts()
+        
+        return False
     
     def is_connected(self):
         """Prüft ob Kamera verbunden ist"""

@@ -4,6 +4,7 @@ import socket
 from gpio_helper import GPIOHandler
 from PIL import Image, ImageTk
 from camera_handler import CameraHandler
+from menu_manager import MenuManager
 #from data_provider import DataProvider
 
 class App(tk.Frame):
@@ -30,6 +31,10 @@ class App(tk.Frame):
         # Kamera-Display Variablen
         self.camera_display = None
         self.camera_photo = None
+
+        # MenuManager erstellen (nach camera_handler Initialisierung)
+        self.menu_manager = MenuManager(master, self)
+        self.menubar = self.menu_manager.menubar
 
 
         # Aktuelle IP merken

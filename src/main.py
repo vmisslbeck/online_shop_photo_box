@@ -19,11 +19,18 @@ def main():
         print("Studio-Modus aktiviert")
     else:
         app = App(root)
+
+    root.config(menu=app.menubar)
     
     app.pack(expand=True, fill="both")
 
-    # Optional: ESC zum Beenden
-    root.bind("<Escape>", lambda e: root.destroy()) # TODO program should not be termined by esc
+    # Verbessertes ESC-Verhalten: Vollbild beenden statt Programm schließen
+    def handle_escape(event):
+        if root.attributes("-fullscreen"):
+            root.attributes("-fullscreen", False)
+        # TODO: In Zukunft könnte hier ein Bestätigungsdialog kommen
+    
+    root.bind("<Escape>", handle_escape)
 
     root.mainloop()
 
