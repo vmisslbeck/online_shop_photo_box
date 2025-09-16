@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
 from ui import App
+from menu_manager import MenuManager
 
 class StudioControlPanel(tk.Toplevel):
     def __init__(self, parent, camera_handler):
@@ -72,6 +73,18 @@ class StudioControlPanel(tk.Toplevel):
             self.refresh_status_button = ttk.Button(button_frame, text="Status aktualisieren", 
                                                   command=self.refresh_status)
             self.refresh_status_button.pack(side="left", padx=2)
+            
+            # USB-Fix Button
+            usb_frame = ttk.Frame(control_frame)
+            usb_frame.pack(fill="x", pady=5)
+            
+            self.usb_fix_button = ttk.Button(usb_frame, text="USB-Konflikte beheben", 
+                                           command=self.fix_usb_conflicts)
+            self.usb_fix_button.pack(side="left", padx=2)
+            
+            self.external_fix_button = ttk.Button(usb_frame, text="Externes USB-Fix", 
+                                                command=self.run_external_fix)
+            self.external_fix_button.pack(side="left", padx=2)
         
         # Aktualisiere Status
         self.update_status()
@@ -248,12 +261,78 @@ class StudioControlPanel(tk.Toplevel):
         """Startet kontinuierliche Status-Updates"""
         self.update_status()
         self.after(5000, self.start_status_updates)  # Alle 5 Sekunden
+        
+    def fix_usb_conflicts(self):
+        """Behebt USB-Konflikte über CameraHandler"""
+        self.status_label.config(text="Behebe USB-Konflikte...")
+        
+        try:
+            success = self.camera_handler.fix_usb_conflicts()
+            if success:
+                self.status_label.config(text="✅ USB-Konflikte behoben - Kamera wieder verfügbar")
+                messagebox.showinfo("Erfolg", "USB-Konflikte wurden behoben!\n\nDie Kamera sollte jetzt wieder funktionieren.")
+            else:
+                self.status_label.config(text="⚠️ USB-Konflikte konnten nicht vollständig behoben werden")
+                messagebox.showwarning("Teilweise erfolgreich", 
+                    "Einige USB-Konflikte wurden behoben,\naber Probleme könnten bestehen bleiben.\n\n"
+                    "Versuchen Sie 'Externes USB-Fix' oder\nstarten Sie die Kamera neu.")
+        except Exception as e:
+            self.status_label.config(text=f"❌ Fehler beim USB-Fix: {str(e)}")
+            messagebox.showerror("Fehler", f"Fehler beim Beheben der USB-Konflikte:\n{str(e)}")
+        
+        # Status nach 3 Sekunden aktualisieren
+        self.after(3000, self.refresh_status)
+    
+    def run_external_fix(self):
+        """Führt externes USB-Fix-Script aus"""
+        import subprocess
+        import threading
+        
+        def run_fix():
+            try:
+                self.status_label.config(text="Führe externes USB-Fix aus...")
+                
+                # Führe fix_usb.py aus
+                result = subprocess.run([
+                    "python", "src/fix_usb.py"
+                ], capture_output=True, text=True, timeout=60)
+                
+                if result.returncode == 0:
+                    self.after(100, lambda: self.status_label.config(text="✅ Externes USB-Fix erfolgreich"))
+                    self.after(100, lambda: messagebox.showinfo("Erfolg", 
+                        "Externes USB-Fix wurde erfolgreich ausgeführt!\n\n"
+                        "Ausgabe:\n" + result.stdout[:300]))
+                else:
+                    self.after(100, lambda: self.status_label.config(text="⚠️ Externes USB-Fix mit Warnung beendet"))
+                    self.after(100, lambda: messagebox.showwarning("Warnung", 
+                        f"USB-Fix mit Problemen:\n\nFehler:\n{result.stderr[:300]}"))
+                        
+            except subprocess.TimeoutExpired:
+                self.after(100, lambda: self.status_label.config(text="⏰ Externes USB-Fix Timeout"))
+                self.after(100, lambda: messagebox.showerror("Timeout", 
+                    "Das externe USB-Fix-Script hat zu lange gedauert.\n"
+                    "Führen Sie es manuell in einem Terminal aus:\n"
+                    "python src/fix_usb.py"))
+            except Exception as e:
+                self.after(100, lambda: self.status_label.config(text=f"❌ USB-Fix Fehler: {str(e)}"))
+                self.after(100, lambda: messagebox.showerror("Fehler", f"Fehler beim externen USB-Fix:\n{str(e)}"))
+            
+            # Status aktualisieren
+            self.after(2000, self.refresh_status)
+        
+        # In separatem Thread ausführen um UI nicht zu blockieren
+        thread = threading.Thread(target=run_fix, daemon=True)
+        thread.start()
 
 # Erweiterte App-Klasse
 class StudioApp(App):
     def __init__(self, master=None):
         super().__init__(master)
         self.studio_panel = None
+        
+        # Studio-spezifisches Menü erstellen (überschreibt das Standard-Menü)
+        self.menu_manager = MenuManager(master, self)
+        self.menubar = self.menu_manager.menubar
     
     def create_widgets(self):
         # Originale Widgets erstellen
