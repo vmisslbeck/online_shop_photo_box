@@ -1,6 +1,6 @@
 # Studio-Setup Anleitung
 
-## 🎯 **Für Ihr Canon DSLR Studio-Setup**
+##  **Für Ihr Canon DSLR Studio-Setup**
 
 ### **1. Kamera-Steuerung: Hybrid-Ansatz (Empfohlen)**
 
@@ -11,14 +11,14 @@ python src/main.py --studio
 
 #### **Empfohlene Konfiguration:**
 - **Kamera-Modus**: PTP (Picture Transfer Protocol)
-- **Manuelle Bedienung**: ✅ Blende, ISO, Verschluss direkt an der Kamera
-- **Software-Steuerung**: ✅ Live-View, Auslösung, Spezial-Einstellungen
+- **Manuelle Bedienung**:  Blende, ISO, Verschluss direkt an der Kamera
+- **Software-Steuerung**:  Live-View, Auslösung, Spezial-Einstellungen
 
 #### **Vorteile dieses Ansatzes:**
-- 🎛️ **Gewohnte Bedienung**: Photographer kann weiterhin direkt an der Kamera arbeiten
-- ⚡ **Schnelle Anpassungen**: Keine Software-Menüs für Standard-Einstellungen
-- 🔧 **Software-Power**: Erweiterte Funktionen wie Bracketing, Intervall-Timer via UI
-- 🛡️ **Ausfallsicher**: Kamera funktioniert auch bei Software-Problemen
+-  **Gewohnte Bedienung**: Photographer kann weiterhin direkt an der Kamera arbeiten
+-  **Schnelle Anpassungen**: Keine Software-Menüs für Standard-Einstellungen
+-  **Software-Power**: Erweiterte Funktionen wie Bracketing, Intervall-Timer via UI
+-  **Ausfallsicher**: Kamera funktioniert auch bei Software-Problemen
 
 ### **2. Lightroom-Integration: Network-Share Lösung**
 
@@ -32,7 +32,7 @@ python src/main.py --studio
 
 2. **Photo-Box konfigurieren**:
    - Studio-Kontrollpanel öffnen
-   - "Studio-Modus aktivieren" ✅
+   - "Studio-Modus aktivieren" 
    - Lightroom-Ordner: `\\LIGHTROOM-PC\PhotoBox-Import\`
 
 3. **Lightroom Auto-Import konfigurieren**:
@@ -103,16 +103,5 @@ gphoto2 --capture-image-and-download --filename="test_%Y%m%d_%H%M%S.jpg"
 ```
 
 ### **6. Erwartete Canon DSLR Kompatibilität**
-
-| **Funktion** | **Verfügbarkeit** |
-|---|---|
-| Live-View | ✅ Alle modernen DSLRs |
-| Remote-Auslösung | ✅ Alle modernen DSLRs |
-| ISO-Steuerung | ✅ Software-steuerbar |
-| Verschlusszeit | ✅ Software-steuerbar |
-| Blende | ⚠️ Abhängig vom Objektiv |
-| Autofokus | ✅ Basic AF-Modi |
-| Weißabgleich | ✅ Alle Presets |
-| Bildformat | ✅ RAW/JPEG-Einstellungen |
 
 **Tipp**: Testen Sie zuerst alle Funktionen mit `gphoto2` direkt, bevor Sie das UI verwenden!
