@@ -11,6 +11,38 @@ class App(tk.Frame):
     def __init__(self, master=None):
         super().__init__(master, bg="#1e1e1e")
 
+        # Style/Theming
+        self.style = ttk.Style()
+        self.style.theme_use("clam")
+        self.themes = {
+            "dark": {
+                "bg": "#1e1e1e",
+                "fg": "#f7f7f7",
+                "panel_bg": "#232323",
+                "secondary_bg": "#2d2d2d",
+                "button_bg": "#363636",
+                "button_fg": "#ffffff",
+                "button_border": "#ff914d",
+                "button_active_bg": "#ffb36c",
+                "button_active_fg": "#1e1e1e",
+                "accent": "#ff914d"
+            },
+            "light": {
+                "bg": "#f3f4f6",
+                "fg": "#111111",
+                "panel_bg": "#ffffff",
+                "secondary_bg": "#e7ebf0",
+                "button_bg": "#ffffff",
+                "button_fg": "#111111",
+                "button_border": "#ff914d",
+                "button_active_bg": "#ffe4d1",
+                "button_active_fg": "#111111",
+                "accent": "#ff914d"
+            }
+        }
+        self.theme = "dark"
+        self.colors = self.themes[self.theme]
+
         # Logo laden
         image = Image.open("src/resources/img/quattrom-logo.png")  # Pfad zu deinem Logo
         image = image.resize((180, 54))  # optional verkleinern
@@ -42,6 +74,7 @@ class App(tk.Frame):
 
         # UI-Elemente
         self.create_widgets()
+        self.apply_theme(self.theme)
 
         # Update Loop für Daten
         self.update_data()
@@ -52,71 +85,168 @@ class App(tk.Frame):
 
     def create_widgets(self):
         # Überschrift
-        self.label_title = ttk.Label(self, text="Photo Box UI", font=("Arial", 16))
+        self.label_title = ttk.Label(self, text="Photo Box UI", font=("Arial", 16), style="Title.TLabel")
         self.label_title.pack(pady=10)
 
         # Kamera-Frame (links)
-        self.camera_frame = tk.Frame(self, bg="#1e1e1e")
+        self.camera_frame = tk.Frame(self, bg=self.colors["panel_bg"])
         self.camera_frame.pack(side="left", padx=20, pady=10, fill="both", expand=True)
         
         # Kamera-Status
         camera_mode = self.camera_handler.camera_mode.upper()
         camera_status = f"Verbunden ({camera_mode})" if self.camera_handler.is_connected() else "Nicht verbunden"
-        self.camera_status_label = ttk.Label(self.camera_frame, text=f"Kamera: {camera_status}", font=("Arial", 10))
+        self.camera_status_label = ttk.Label(self.camera_frame, text=f"Kamera: {camera_status}", font=("Arial", 10), style="Body.TLabel")
         self.camera_status_label.pack(pady=5)
         
         # Kamera-Display Container für bessere Kontrolle
-        self.camera_display_frame = tk.Frame(self.camera_frame, bg="#1e1e1e")
+        self.camera_display_frame = tk.Frame(self.camera_frame,
+                             bg=self.colors["panel_bg"],
+                             highlightthickness=1,
+                             bd=0)
         self.camera_display_frame.pack(pady=10, expand=True, fill="both")
         
         # Kamera-Display
         self.camera_display = tk.Label(self.camera_display_frame, 
                                      text="Kamera-Vorschau\n(Live View starten)", 
-                                     bg="#2d2d2d", fg="white",
+                         bg=self.colors["secondary_bg"], fg=self.colors["fg"],
                                      font=("Arial", 12))
         self.camera_display.pack(expand=True)
         
         # Kamera-Buttons Frame
-        self.camera_buttons_frame = tk.Frame(self.camera_frame, bg="#1e1e1e")
+        self.camera_buttons_frame = tk.Frame(self.camera_frame, bg=self.colors["panel_bg"])
         self.camera_buttons_frame.pack(pady=10)
         
         # Live View Button
         self.live_view_button = ttk.Button(self.camera_buttons_frame, 
                                          text="Live View starten",
-                                         command=self.toggle_live_view)
+                         style="Accent.TButton",
+                         command=self.toggle_live_view)
         self.live_view_button.pack(side="left", padx=5)
         
         # Foto Button
         self.capture_button = ttk.Button(self.camera_buttons_frame,
                                        text="Foto aufnehmen",
-                                       command=self.capture_photo)
+                           style="Accent.TButton",
+                           command=self.capture_photo)
         self.capture_button.pack(side="left", padx=5)
 
         # Rechte Seite - Kontrollen (rechts)
-        self.controls_frame = tk.Frame(self, bg="#1e1e1e")
+        self.controls_frame = tk.Frame(self, bg=self.colors["panel_bg"])
         self.controls_frame.pack(side="right", padx=20, pady=10, fill="y")
 
         # Drehwinkel Block
-        self.angle_label = ttk.Label(self.controls_frame, text="Drehwinkel:", font=("Arial", 12))
+        self.angle_label = ttk.Label(self.controls_frame, text="Drehwinkel:", font=("Arial", 12), style="Body.TLabel")
         self.angle_label.pack(pady=5)
 
-        self.angle_value = ttk.Label(self.controls_frame, text="---", font=("Arial", 14))
+        self.angle_value = ttk.Label(self.controls_frame, text="---", font=("Arial", 14), style="Value.TLabel")
         self.angle_value.pack(pady=5)
 
         # Button als Beispiel
-        self.quit_button = ttk.Button(self.controls_frame, text="Beenden", command=self.quit)
+        self.quit_button = ttk.Button(self.controls_frame, text="Beenden", style="Accent.TButton", command=self.quit)
         self.quit_button.pack(pady=10)
 
         # Button zum Setzen der IP (nur einmal erstellen!)
+        self.theme_toggle_button = ttk.Button(self.controls_frame,
+                              text="Zu hellem Modus",
+                              style="Accent.TButton",
+                              command=self.toggle_theme)
+        self.theme_toggle_button.pack(side="bottom", anchor="se", padx=10, pady=8)
+
         self.ip_button = ttk.Button(self.controls_frame, text="IP einstellen",
-                                    command=self.set_ip_dialog)
+                        style="Accent.TButton",
+                        command=self.set_ip_dialog)
         self.ip_button.pack(side="bottom", anchor="se", padx=10, pady=12)
 
         # Label unten rechts für IP-Adresse (nur einmal erstellen!)
         self.ip_label = tk.Label(self.controls_frame, text=f"IP: {self.current_ip}",
                                  font=("Arial", 12),
-                                 fg="white", bg="#1e1e1e", anchor="se")
+                     fg=self.colors["fg"], bg=self.colors["panel_bg"], anchor="se")
         self.ip_label.pack(side="bottom", anchor="se", padx=10, pady=10)
+
+    def apply_theme(self, theme_name):
+        theme = self.themes.get(theme_name, self.themes["dark"])
+        self.theme = theme_name
+        self.colors = theme
+
+        # Frame/Label backgrounds
+        self.configure(bg=theme["bg"])
+        if hasattr(self, "logo_label"):
+            self.logo_label.config(bg=theme["bg"])
+
+        frame_colors = {
+            "camera_frame": theme["panel_bg"],
+            "camera_buttons_frame": theme["panel_bg"],
+            "controls_frame": theme["panel_bg"]
+        }
+        for attr, color in frame_colors.items():
+            widget = getattr(self, attr, None)
+            if widget is not None:
+                widget.config(bg=color)
+
+        if hasattr(self, "camera_display_frame"):
+            self.camera_display_frame.config(bg=theme["panel_bg"],
+                                             highlightbackground=theme["accent"],
+                                             highlightcolor=theme["accent"],
+                                             highlightthickness=1)
+
+        if hasattr(self, "camera_display"):
+            self.camera_display.config(bg=theme["secondary_bg"], fg=theme["fg"])
+
+        if hasattr(self, "ip_label"):
+            self.ip_label.config(bg=theme["panel_bg"], fg=theme["fg"])
+
+        # ttk Label Styles
+        self.style.configure("Title.TLabel", background=theme["bg"], foreground=theme["fg"], font=("Arial", 16))
+        self.style.configure("Body.TLabel", background=theme["panel_bg"], foreground=theme["fg"], font=("Arial", 11))
+        self.style.configure("Value.TLabel", background=theme["panel_bg"], foreground=theme["accent"], font=("Arial", 14, "bold"))
+
+        # Button Style with white text + accent border for dark mode
+        button_base = dict(
+            background=theme["button_bg"],
+            foreground=theme["button_fg"],
+            focusthickness=2,
+            focuscolor=theme["button_border"],
+            borderwidth=2,
+            padding=6
+        )
+        try:
+            self.style.configure(
+                "Accent.TButton",
+                relief="solid",
+                lightcolor=theme["button_border"],
+                darkcolor=theme["button_border"],
+                bordercolor=theme["button_border"],
+                **button_base
+            )
+        except tk.TclError:
+            self.style.configure("Accent.TButton", **button_base)
+        self.style.map(
+            "Accent.TButton",
+            background=[("pressed", theme["button_active_bg"]), ("active", theme["button_active_bg"])],
+            foreground=[("pressed", theme["button_active_fg"]), ("active", theme["button_active_fg"])]
+        )
+        try:
+            self.style.map(
+                "Accent.TButton",
+                bordercolor=[("pressed", theme["button_border"]), ("active", theme["button_border"])],
+                lightcolor=[("!disabled", theme["button_border"])],
+                darkcolor=[("!disabled", theme["button_border"])]
+            )
+        except tk.TclError:
+            pass
+
+        if hasattr(self, "controls_frame"):
+            for child in self.controls_frame.winfo_children():
+                if isinstance(child, tk.Label):
+                    child.config(bg=theme["panel_bg"], fg=theme["fg"])
+
+        if hasattr(self, "theme_toggle_button"):
+            next_caption = "Zu dunklem Modus" if theme_name == "light" else "Zu hellem Modus"
+            self.theme_toggle_button.config(text=next_caption)
+
+    def toggle_theme(self):
+        next_theme = "light" if self.theme == "dark" else "dark"
+        self.apply_theme(next_theme)
 
 
     def update_data(self):
